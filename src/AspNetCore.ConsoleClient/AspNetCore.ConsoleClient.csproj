@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.2</TargetFramework>    
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FCP.Util.Async" Version="1.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="2.2.0" />
+    <PackageReference Include="Portable.BouncyCastle" Version="1.8.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AspNetCore.SecurityCommon\AspNetCore.SecurityCommon.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="rsa_public_key.pem">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

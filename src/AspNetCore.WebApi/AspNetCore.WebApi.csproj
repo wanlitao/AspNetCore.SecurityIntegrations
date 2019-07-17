@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp2.2</TargetFramework>
+    <AspNetCoreHostingModel>InProcess</AspNetCoreHostingModel>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DocumentationFile>D:\test projects\AspNetCoreSecurityIntegrations\src\AspNetCore.WebApi\AspNetCore.WebApi.xml</DocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="AspNetCore.WebApi.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FCP.AspNetCore.Mvc" Version="1.0.5" />
+    <PackageReference Include="FCP.AspNetCore.Mvc.Formatters.Json" Version="1.0.0" />
+    <PackageReference Include="FCP.Swashbuckle.AspNetCore.Swagger" Version="1.1.0" />
+    <PackageReference Include="FCP.Swashbuckle.AspNetCore.SwaggerGen" Version="1.1.1" />
+    <PackageReference Include="FCP.Swashbuckle.AspNetCore.SwaggerGen.Versioning" Version="1.1.0" />
+    <PackageReference Include="FCP.Swashbuckle.AspNetCore.SwaggerUI.Versioning" Version="1.1.0" />
+    <PackageReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.HealthChecks" Version="1.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning.ApiExplorer" Version="3.2.0" />
+  </ItemGroup>
+
+</Project>

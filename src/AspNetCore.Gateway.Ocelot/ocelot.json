@@ -1,0 +1,35 @@
+{
+  "ReRoutes": [],
+  "Aggregates": [],
+  "GlobalConfiguration": {
+    "RequestIdKey": null,
+    "ServiceDiscoveryProvider": {
+      "Host": "localhost",
+      "Port": 8500,
+      "Type": "Consul"
+    },
+    "RateLimitOptions": {
+      "ClientIdHeader": "ClientId",
+      "QuotaExceededMessage": null,
+      "RateLimitCounterPrefix": "ocelot",
+      "DisableRateLimitHeaders": false,
+      "HttpStatusCode": 429
+    },
+    "QoSOptions": {
+      "ExceptionsAllowedBeforeBreaking": 3,
+      "DurationOfBreak": 5,
+      "TimeoutValue": 5000
+    },
+    "BaseUrl": null,
+    "LoadBalancerOptions": {
+      "Type": "LeastConnection"
+    },
+    "DownstreamScheme": "http",
+    "HttpHandlerOptions": {
+      "AllowAutoRedirect": false,
+      "UseCookieContainer": false,
+      "UseTracing": false
+    }
+  }
+}
+
