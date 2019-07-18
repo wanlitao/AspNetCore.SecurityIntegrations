@@ -15,7 +15,7 @@ namespace AspNetCore.Gateway.Ocelot
                 .MinimumLevel.Warning()
                 .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
                 .Enrich.FromLogContext()
-                .WriteTo.File("log.txt", rollingInterval: RollingInterval.Day)
+                .WriteTo.File("logs/log.txt", rollingInterval: RollingInterval.Day)
                 .CreateLogger();
 
             try
