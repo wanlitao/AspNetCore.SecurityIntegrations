@@ -49,7 +49,10 @@ namespace AspNetCore.Gateway.Ocelot
                 app.UseDeveloperExceptionPage();
             }
 
-            app.UseOcelot(config => config.UsePreSSLAuthentication(app.ApplicationServices)).Wait();
+            app.UseOcelot(config => 
+                config.UsePreSSLAuthentication(app.ApplicationServices)
+                    .UseRSAConfiguration("/rsa")
+                ).Wait();
         }
     }
 }

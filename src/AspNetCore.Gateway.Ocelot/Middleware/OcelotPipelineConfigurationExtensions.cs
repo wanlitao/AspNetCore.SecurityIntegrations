@@ -24,6 +24,22 @@ namespace AspNetCore.Gateway.Ocelot
             return configuration;
         }
 
+        public static OcelotPipelineConfiguration UseRSAConfiguration(this OcelotPipelineConfiguration configuration,
+            string clientRequestPath)
+        {
+            ValidatePipelineMapPath(clientRequestPath);
+
+            configuration.MapWhenOcelotPipeline.Add(app =>
+            {
+                app.UseRSAConfiguration(clientRequestPath);
+
+                return context => context.HttpContext.Request.Path.StartsWithSegments(clientRequestPath);
+            });
+
+            return configuration;
+        }
+
+        #region Middleware Compile
         private static Func<DownstreamContext, OcelotRequestDelegate, Task> CompileOcelotMiddleware<TMiddleware>(
             IServiceProvider serviceProvider, params object[] args)
         {
@@ -73,6 +89,7 @@ namespace AspNetCore.Gateway.Ocelot
                 return requestDelegate(context);
             };
         }
+        #endregion
 
         private static Func<DownstreamContext, Func<Task>, Task> AsPipelineConfigurationMiddleware(
             this Func<DownstreamContext, OcelotRequestDelegate, Task> ocelotMiddlewareFunction)
@@ -83,6 +100,18 @@ namespace AspNetCore.Gateway.Ocelot
 
                 return ocelotMiddlewareFunction(context, requestDelegate);
             };
+        }
+
+        private static void ValidatePipelineMapPath(string requestPath)
+        {
+            if (string.IsNullOrWhiteSpace(requestPath))
+                throw new ArgumentNullException(nameof(requestPath));
+
+            if (requestPath.Contains("?"))
+                throw new ArgumentException($"{nameof(requestPath)} cannot contain query string values");
+
+            if (!requestPath.StartsWith("/"))
+                throw new ArgumentException($"{nameof(requestPath)} should start with '/'");
         }
     }
 }
