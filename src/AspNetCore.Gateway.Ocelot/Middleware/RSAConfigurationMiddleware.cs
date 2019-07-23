@@ -15,12 +15,15 @@ namespace AspNetCore.Gateway.Ocelot
 
         private readonly OcelotRequestDelegate _next;
 
+        private readonly IRSAConfigurationRepository _rsaConfigRepo;
+
         private readonly string _clientRequestPath;
         private readonly string _rsaPublicRequestPath;
 
         public RSAConfigurationMiddleware(OcelotRequestDelegate next,
             IConfiguration configuration, IOcelotLoggerFactory loggerFactory,
-            string clientRequestPath)            
+            IRSAConfigurationRepository rsaConfigRepo,
+            string clientRequestPath)
             : base(loggerFactory.CreateLogger<SSLAuthenticationMiddleware>())
         {
             _next = next;
@@ -28,28 +31,43 @@ namespace AspNetCore.Gateway.Ocelot
             _configuration = configuration;
             _appSettings = configuration.GetSection("appSettings");
 
+            _rsaConfigRepo = rsaConfigRepo;
+
             _clientRequestPath = clientRequestPath;
             _rsaPublicRequestPath = $"{clientRequestPath}/public";
         }
 
         public async Task Invoke(DownstreamContext context)
         {
-            if (IsRSAPublicKeyRequest(context.HttpContext))
+            if (!IsRSAPublicKeyRequest(context.HttpContext))
             {
-                context.DownstreamResponse = new DownstreamResponse(new HttpResponseMessage
-                {
-                    StatusCode = HttpStatusCode.OK,
-                    Content = new StringContent("request rsa public key")
-                });
+                await _next.Invoke(context);
+                return;
+            }
+           
+            var publicKeyResult = await _rsaConfigRepo.GetPublicKey();
+
+            if (publicKeyResult == null || string.IsNullOrWhiteSpace(publicKeyResult.Data))
+            {
+                context.DownstreamResponse = BuildDownstreamResponse(HttpStatusCode.NotFound, "not found rsa public key.");
                 return;
             }
 
-            await _next.Invoke(context);
+            context.DownstreamResponse = BuildDownstreamResponse(HttpStatusCode.OK, publicKeyResult.Data);
         }
 
         private bool IsRSAPublicKeyRequest(HttpContext context)
         {
             return context.Request.Path == _rsaPublicRequestPath;
+        }
+
+        private static DownstreamResponse BuildDownstreamResponse(HttpStatusCode statusCode, string contentStr)
+        {
+            return new DownstreamResponse(new HttpResponseMessage
+            {
+                StatusCode = statusCode,
+                Content = new StringContent(contentStr)
+            });
         }
     }
 }

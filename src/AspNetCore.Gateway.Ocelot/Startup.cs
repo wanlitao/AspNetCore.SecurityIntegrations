@@ -29,7 +29,8 @@ namespace AspNetCore.Gateway.Ocelot
         {
             services.AddOcelot()
                 .AddConsul()
-                .AddPolly();
+                .AddPolly()
+                .AddConsulRSAConfiguration();
 
             services.AddScoped<IRSAProvider>((provider) => RSAProvider.ECBPkcs1FromKeyFile(_appSettings["RSA_PrivateKey_FileName"]));
             services.AddScoped<ICipherService, RSAService>();
@@ -51,8 +52,8 @@ namespace AspNetCore.Gateway.Ocelot
 
             app.UseOcelot(config => 
                 config.UsePreSSLAuthentication(app.ApplicationServices)
-                    .UseRSAConfiguration("/rsa")
-                ).Wait();
+                .UseRSAConfiguration("/rsa")
+            ).Wait();
         }
     }
 }
