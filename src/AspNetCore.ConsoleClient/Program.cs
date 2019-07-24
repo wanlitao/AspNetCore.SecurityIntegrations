@@ -27,10 +27,6 @@ namespace AspNetCore.ConsoleClient
                         c.BaseAddress = new Uri(appSettings["Gateway_Address"]);
                     });
 
-                    services.AddScoped<IRSAPublicProvider>(
-                        (provider) => RSAPublicProvider.ECBPkcs1FromKeyFile(appSettings["RSA_PublicKey_FileName"]));
-                    services.AddScoped<IMacService, RSAPublicService>();
-
                     services.AddHostedService<ClientHostedService>();
                 })
                 .ConfigureLogging((hostContext, configLogging) =>

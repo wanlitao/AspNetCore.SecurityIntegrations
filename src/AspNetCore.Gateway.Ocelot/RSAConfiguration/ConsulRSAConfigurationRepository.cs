@@ -5,6 +5,7 @@ using Ocelot.Configuration.Repository;
 using Ocelot.Logging;
 using Ocelot.Provider.Consul;
 using Ocelot.Responses;
+using System;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -70,7 +71,14 @@ namespace AspNetCore.Gateway.Ocelot
                 return new OkResponse<string>(privateKey);
             }
 
-            return await QueryConsulKV(PrivateConfigurationKey);
+            var result = await QueryConsulKV(PrivateConfigurationKey);
+            if (result != null && result.Data != null)
+            {
+                _cache.AddAndDelete(PrivateConfigurationKey, result.Data,
+                    TimeSpan.FromMinutes(10), _configurationKeyPrefix);
+            }
+
+            return result;
         }
 
         public async Task<Response<string>> GetPublicKey()
@@ -82,7 +90,14 @@ namespace AspNetCore.Gateway.Ocelot
                 return new OkResponse<string>(publicKey);
             }
 
-            return await QueryConsulKV(PublicConfigurationKey);
+            var result = await QueryConsulKV(PublicConfigurationKey);
+            if (result != null && result.Data != null)
+            {
+                _cache.AddAndDelete(PublicConfigurationKey, result.Data,
+                    TimeSpan.FromMinutes(10), _configurationKeyPrefix);
+            }
+
+            return result;
         }
     }
 }

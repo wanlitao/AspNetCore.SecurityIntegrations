@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Ocelot.DownstreamRouteFinder.Finder;
 using Ocelot.Logging;
 using Ocelot.Middleware;
 using System.Net;
@@ -41,7 +42,8 @@ namespace AspNetCore.Gateway.Ocelot
         {
             if (!IsRSAPublicKeyRequest(context.HttpContext))
             {
-                await _next.Invoke(context);
+                var request = context.HttpContext.Request;
+                SetPipelineError(context, new UnableToFindDownstreamRouteError(request.Path, request.Method));
                 return;
             }
            

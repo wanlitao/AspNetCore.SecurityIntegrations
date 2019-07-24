@@ -1,5 +1,4 @@
-﻿using AspNetCore.SecurityCommon;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,9 +30,6 @@ namespace AspNetCore.Gateway.Ocelot
                 .AddConsul()
                 .AddPolly()
                 .AddConsulRSAConfiguration();
-
-            services.AddScoped<IRSAProvider>((provider) => RSAProvider.ECBPkcs1FromKeyFile(_appSettings["RSA_PrivateKey_FileName"]));
-            services.AddScoped<ICipherService, RSAService>();
 
             services.AddHealthChecks(checks =>
             {

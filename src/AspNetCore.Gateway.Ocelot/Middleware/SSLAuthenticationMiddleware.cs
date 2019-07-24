@@ -5,6 +5,7 @@ using Ocelot.Errors;
 using Ocelot.Logging;
 using Ocelot.Middleware;
 using Ocelot.Request.Middleware;
+using Ocelot.Responses;
 using System;
 using System.Linq;
 using System.Net.Http;
@@ -21,11 +22,11 @@ namespace AspNetCore.Gateway.Ocelot
 
         private readonly OcelotRequestDelegate _next;
 
-        private readonly ICipherService _rsaService;
+        private readonly IRSAConfigurationRepository _rsaConfigRepo;
 
         public SSLAuthenticationMiddleware(OcelotRequestDelegate next,
             IConfiguration configuration, IOcelotLoggerFactory loggerFactory,
-            ICipherService rsaService)
+            IRSAConfigurationRepository rsaConfigRepo)
             : base(loggerFactory.CreateLogger<SSLAuthenticationMiddleware>())
         {
             _next = next;
@@ -33,7 +34,7 @@ namespace AspNetCore.Gateway.Ocelot
             _configuration = configuration;
             _appSettings = configuration.GetSection("appSettings");
 
-            _rsaService = rsaService;
+            _rsaConfigRepo = rsaConfigRepo;
         }
 
         public async Task Invoke(DownstreamContext context)
@@ -70,9 +71,18 @@ namespace AspNetCore.Gateway.Ocelot
                 return;
             }
 
+            //RSA Service
+            var rsaServiceResult = await GetRSAService();
+            if (rsaServiceResult.IsError)
+            {
+                SetPipelineError(context, rsaServiceResult.Errors.First());
+                return;
+            }
+            var rsaService = rsaServiceResult.Data;
+
             //SignatureKey
             var signatureKeyHeaderStr = request.Headers.GetValues(SecurityConstants.HttpHeaders_SignatureKey)?.FirstOrDefault();
-            var signatureKey = _rsaService.Decrypt(signatureKeyHeaderStr);
+            var signatureKey = rsaService.Decrypt(signatureKeyHeaderStr);
             if (string.IsNullOrWhiteSpace(signatureKey))
             {
                 SetPipelineError(context, new UnauthenticatedError("Invalid Signature Key"));
@@ -89,7 +99,7 @@ namespace AspNetCore.Gateway.Ocelot
 
             //SecurityKey
             var securityKeyHeaderStr = request.Headers.GetValues(SecurityConstants.HttpHeaders_SecurityKey)?.FirstOrDefault();
-            var securityKeySourceStr = _rsaService.Decrypt(securityKeyHeaderStr);
+            var securityKeySourceStr = rsaService.Decrypt(securityKeyHeaderStr);
             var (aesKey, aesIv) = SplitAESKeyAndIV(securityKeySourceStr);
             if (string.IsNullOrWhiteSpace(aesKey) || string.IsNullOrWhiteSpace(aesIv))
             {
@@ -150,6 +160,19 @@ namespace AspNetCore.Gateway.Ocelot
             var dtNowTimestamp = (DateTime.UtcNow - SecurityConstants.Timestamp_StartUtcDateTime).TotalMilliseconds;
 
             return dtNowTimestamp > timestamp + expireSeconds * 1000;
+        }
+
+        private async Task<Response<ICipherService>> GetRSAService()
+        {
+            var privateKeyResult = await _rsaConfigRepo.GetPrivateKey();
+
+            if (privateKeyResult == null || string.IsNullOrWhiteSpace(privateKeyResult.Data))
+                return new ErrorResponse<ICipherService>(new UnauthenticatedError("not found rsa private key."));
+
+            var privateKey = privateKeyResult.Data.Replace("\\n", Environment.NewLine);
+            var rsaProvider = RSAProvider.ECBPkcs1FromKey(privateKey);
+
+            return new OkResponse<ICipherService>(new RSAService(rsaProvider));
         }
 
         private static IMacService GetSHAService(string shaKey)

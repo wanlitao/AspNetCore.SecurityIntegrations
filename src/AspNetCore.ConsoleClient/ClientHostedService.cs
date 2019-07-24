@@ -18,17 +18,15 @@ namespace AspNetCore.ConsoleClient
         private readonly IConfiguration _config;
         private readonly ILogger _logger;
 
-        private readonly IHttpClientFactory _clientFactory;
-        private readonly IMacService _rsaPublicService;
+        private readonly IHttpClientFactory _clientFactory;        
 
         public ClientHostedService(IConfiguration config, ILogger<ClientHostedService> logger,
-            IHttpClientFactory clientFactory, IMacService rsaPublicService)
+            IHttpClientFactory clientFactory)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-            _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
-            _rsaPublicService = rsaPublicService ?? throw new ArgumentNullException(nameof(rsaPublicService));
+            _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));            
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -59,13 +57,22 @@ namespace AspNetCore.ConsoleClient
         {
             var client = _clientFactory.CreateClient("gateway");
 
+            var publicKeyResponse = await client.GetAsync("rsa/public");
+            if (!publicKeyResponse.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"rsa public key response error {publicKeyResponse.StatusCode}");
+                return;
+            }
+
+            var rsaPublicService = await GetRSAPublicService(publicKeyResponse);
+
             var signatureKey = GenerateSignatureKey();
 
             var aesKey = GenerateAESKey();
             var aesIv = GenerateAESIV();
 
             var requestMessage = await BuildRequestMessage(method, new Uri(client.BaseAddress, requestPath), content,
-                signatureKey, aesKey, aesIv);
+                rsaPublicService, signatureKey, aesKey, aesIv);
             var response = await client.SendAsync(requestMessage);
 
             await ValidateAndDecryptResponseMessage(response, signatureKey, aesKey, aesIv);
@@ -98,6 +105,16 @@ namespace AspNetCore.ConsoleClient
             secureRandom.NextBytes(ivBytes);
 
             return TypeHelper.MD5(ivBytes).Substring(8, 16);
+        }
+
+        private static async Task<IMacService> GetRSAPublicService(HttpResponseMessage response)
+        {
+            var publicKeyStr = await response.Content.ReadAsStringAsync();
+            var publicKey = publicKeyStr.Replace("\\n", Environment.NewLine);
+
+            var rsaPublicProvider = RSAPublicProvider.ECBPkcs1FromKey(publicKey);
+
+            return new RSAPublicService(rsaPublicProvider);
         }
 
         private static IMacService GetSHAService(string shaKey)
@@ -139,7 +156,7 @@ namespace AspNetCore.ConsoleClient
         }
 
         private async Task<HttpRequestMessage> BuildRequestMessage(HttpMethod method, Uri requestUri, HttpContent content,
-            string signatureKey, string aesKey, string aesIv)
+            IMacService rsaPublicService, string signatureKey, string aesKey, string aesIv)
         {
             var requestMessage = new HttpRequestMessage
             {
@@ -154,7 +171,7 @@ namespace AspNetCore.ConsoleClient
             requestMessage.Headers.Add(SecurityConstants.HttpHeaders_Timestamp, timestampStr);
 
             //SignatureKey            
-            var encryptSignatureKey = _rsaPublicService.Encrypt(signatureKey);
+            var encryptSignatureKey = rsaPublicService.Encrypt(signatureKey);
             requestMessage.Headers.Add(SecurityConstants.HttpHeaders_SignatureKey, encryptSignatureKey);
 
             //Signature
@@ -163,7 +180,7 @@ namespace AspNetCore.ConsoleClient
 
             //Securitykey            
             var securityKey = $"{aesKey}||{aesIv}";
-            var encryptSecurityKey = _rsaPublicService.Encrypt(securityKey);
+            var encryptSecurityKey = rsaPublicService.Encrypt(securityKey);
             requestMessage.Headers.Add(SecurityConstants.HttpHeaders_SecurityKey, encryptSecurityKey);
 
             //Encrypt Content

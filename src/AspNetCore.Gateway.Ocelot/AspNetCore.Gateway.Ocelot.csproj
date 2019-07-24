@@ -32,12 +32,6 @@
     </Content>
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="rsa_private_key.pem">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
   <ProjectExtensions><VisualStudio><UserProperties /></VisualStudio></ProjectExtensions>
 
 </Project>
