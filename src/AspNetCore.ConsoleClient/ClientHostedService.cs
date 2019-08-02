@@ -1,4 +1,8 @@
-﻿using AspNetCore.SecurityCommon;
+﻿using Drore.SSL.Common;
+using FCP.Util.Async;
+using HEF.Security.BouncyCastle;
+using HEF.Security.Cryptography;
+using HEF.Util;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -8,8 +12,6 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using FCP.Util;
-using FCP.Util.Async;
 
 namespace AspNetCore.ConsoleClient
 {
@@ -18,15 +20,17 @@ namespace AspNetCore.ConsoleClient
         private readonly IConfiguration _config;
         private readonly ILogger _logger;
 
-        private readonly IHttpClientFactory _clientFactory;        
+        private readonly IHttpClientFactory _clientFactory;
+        private readonly ICryptoEncoding _cryptoEncoding;
 
         public ClientHostedService(IConfiguration config, ILogger<ClientHostedService> logger,
-            IHttpClientFactory clientFactory)
+            IHttpClientFactory clientFactory, ICryptoEncoding cryptoEncoding)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-            _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));            
+            _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
+            _cryptoEncoding = cryptoEncoding ?? throw new ArgumentNullException(nameof(cryptoEncoding));
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -85,7 +89,7 @@ namespace AspNetCore.ConsoleClient
 
             var keyBytes = keyGenerator.GenerateKey();
 
-            return TypeHelper.MD5(keyBytes);
+            return keyBytes.ToMD5();
         }
 
         private static string GenerateAESKey()
@@ -94,7 +98,7 @@ namespace AspNetCore.ConsoleClient
 
             var keyBytes = keyGenerator.GenerateKey();            
 
-            return TypeHelper.MD5(keyBytes).Substring(8, 16);
+            return keyBytes.ToMD5().Substring(8, 16);
         }
 
         private static string GenerateAESIV()
@@ -104,36 +108,34 @@ namespace AspNetCore.ConsoleClient
             var secureRandom = new SecureRandom();
             secureRandom.NextBytes(ivBytes);
 
-            return TypeHelper.MD5(ivBytes).Substring(8, 16);
+            return ivBytes.ToMD5().Substring(8, 16);
         }
 
-        private static async Task<IMacService> GetRSAPublicService(HttpResponseMessage response)
+        private async Task<IMacService> GetRSAPublicService(HttpResponseMessage response)
         {
             var publicKeyStr = await response.Content.ReadAsStringAsync();
             var publicKey = publicKeyStr.Replace("\\n", Environment.NewLine);
 
             var rsaPublicProvider = RSAPublicProvider.ECBPkcs1FromKey(publicKey);
 
-            return new RSAPublicService(rsaPublicProvider);
+            return new RSAPublicService(rsaPublicProvider, _cryptoEncoding);
         }
 
-        private static IMacService GetSHAService(string shaKey)
+        private IMacService GetSHAService(string shaKey)
         {
-            return new MacService(SHAProvider.SHA256(shaKey));
+            return new MacService(SHAProvider.SHA256(shaKey), _cryptoEncoding);
         }
 
-        private static string CalcRequestSignature(HttpRequestMessage request, string timestamp, string shaKey)
+        private static string CalcRequestSignature(HttpRequestMessage request, string timestamp, IMacService shaService)
         {
-            var shaService = GetSHAService(shaKey);
-
             var sourceStr = $"{request.Method.Method.ToUpper()} {request.RequestUri.AbsolutePath} {timestamp}";
 
             return shaService.Encrypt(sourceStr);
         }
 
-        private static ICipherService GetAESService(string aesKey, string aesIv)
+        private ICipherService GetAESService(string aesKey, string aesIv)
         {
-            return new AESService(AESProvider.CBCPkcs5(aesKey, aesIv));
+            return new AESService(AESProvider.CBCPkcs5(aesKey, aesIv), _cryptoEncoding);
         }
 
         private static async Task<HttpContent> EncryptRequestContent(HttpRequestMessage request, ICipherService aesService)
@@ -166,22 +168,23 @@ namespace AspNetCore.ConsoleClient
             };
 
             //Timestamp
-            var timestamp = (DateTime.UtcNow - SecurityConstants.Timestamp_StartUtcDateTime).TotalMilliseconds;
+            var timestamp = (DateTime.UtcNow - SSLConstants.Timestamp_StartUtcDateTime).TotalMilliseconds;
             var timestampStr = Convert.ToInt64(timestamp).ToString();
-            requestMessage.Headers.Add(SecurityConstants.HttpHeaders_Timestamp, timestampStr);
+            requestMessage.Headers.Add(SSLConstants.HttpHeaders_Timestamp, timestampStr);
 
             //SignatureKey            
             var encryptSignatureKey = rsaPublicService.Encrypt(signatureKey);
-            requestMessage.Headers.Add(SecurityConstants.HttpHeaders_SignatureKey, encryptSignatureKey);
+            requestMessage.Headers.Add(SSLConstants.HttpHeaders_SignatureKey, encryptSignatureKey);
 
+            var shaService = GetSHAService(signatureKey);
             //Signature
-            var signature = CalcRequestSignature(requestMessage, timestampStr, signatureKey);
-            requestMessage.Headers.Add(SecurityConstants.HttpHeaders_Signature, signature);
+            var signature = CalcRequestSignature(requestMessage, timestampStr, shaService);
+            requestMessage.Headers.Add(SSLConstants.HttpHeaders_Signature, signature);
 
             //Securitykey            
             var securityKey = $"{aesKey}||{aesIv}";
             var encryptSecurityKey = rsaPublicService.Encrypt(securityKey);
-            requestMessage.Headers.Add(SecurityConstants.HttpHeaders_SecurityKey, encryptSecurityKey);
+            requestMessage.Headers.Add(SSLConstants.HttpHeaders_SecurityKey, encryptSecurityKey);
 
             //Encrypt Content
             var aesService = GetAESService(aesKey, aesIv);
@@ -192,13 +195,13 @@ namespace AspNetCore.ConsoleClient
 
         private static bool CheckExistsSignatureHeaders(HttpResponseMessage response)
         {
-            if (!response.Headers.Contains(SecurityConstants.HttpHeaders_Timestamp))
+            if (!response.Headers.Contains(SSLConstants.HttpHeaders_Timestamp))
             {
                 Console.WriteLine("Missing Timestamp Header");
                 return false;
             }
 
-            if (!response.Headers.Contains(SecurityConstants.HttpHeaders_Signature))
+            if (!response.Headers.Contains(SSLConstants.HttpHeaders_Signature))
             {
                 Console.WriteLine("Missing Signature Header");
                 return false;
@@ -209,17 +212,15 @@ namespace AspNetCore.ConsoleClient
 
         private static bool CheckTimestampExpire(string timestampHeaderStr, int expireSeconds)
         {
-            var timestamp = TypeHelper.parseLong(timestampHeaderStr);
+            var timestamp = timestampHeaderStr.ParseLong();
 
-            var dtNowTimestamp = (DateTime.UtcNow - SecurityConstants.Timestamp_StartUtcDateTime).TotalMilliseconds;
+            var dtNowTimestamp = (DateTime.UtcNow - SSLConstants.Timestamp_StartUtcDateTime).TotalMilliseconds;
 
             return dtNowTimestamp > timestamp + expireSeconds * 1000;
         }
 
-        private static string CalcResponseSignature(HttpResponseMessage response, string timestamp, string shaKey)
+        private static string CalcResponseSignature(HttpResponseMessage response, string timestamp, IMacService shaService)
         {
-            var shaService = GetSHAService(shaKey);
-
             var sourceStr = $"{(int)response.StatusCode} {timestamp}";
 
             return shaService.Encrypt(sourceStr);
@@ -237,13 +238,13 @@ namespace AspNetCore.ConsoleClient
             return aesService.Decrypt(responseContentStr);
         }
 
-        private static async Task ValidateAndDecryptResponseMessage(HttpResponseMessage response, string signatureKey, string aesKey, string aesIv)        
+        private async Task ValidateAndDecryptResponseMessage(HttpResponseMessage response, string signatureKey, string aesKey, string aesIv)        
         {
             if (!CheckExistsSignatureHeaders(response))
                 return;
 
             //Timestamp
-            var timestampHeaderStr = response.Headers.GetValues(SecurityConstants.HttpHeaders_Timestamp)?.FirstOrDefault();
+            var timestampHeaderStr = response.Headers.GetValues(SSLConstants.HttpHeaders_Timestamp)?.FirstOrDefault();
             if (CheckTimestampExpire(timestampHeaderStr, 60))
             {
                 Console.WriteLine("Timestamp Expired");
@@ -251,15 +252,16 @@ namespace AspNetCore.ConsoleClient
             }
 
             //Signature
-            var signatureHeaderStr = response.Headers.GetValues(SecurityConstants.HttpHeaders_Signature)?.FirstOrDefault();
+            var signatureHeaderStr = response.Headers.GetValues(SSLConstants.HttpHeaders_Signature)?.FirstOrDefault();
             if (string.IsNullOrWhiteSpace(signatureHeaderStr))
             {
                 Console.WriteLine("Invalid Signature");
                 return;
             }
 
+            var shaService = GetSHAService(signatureKey);
             //Signature Verification
-            var signature = CalcResponseSignature(response, timestampHeaderStr, signatureKey);
+            var signature = CalcResponseSignature(response, timestampHeaderStr, shaService);
             if (string.Compare(signatureHeaderStr, signature) != 0)
             {
                 Console.WriteLine("Signature Verification Failed");

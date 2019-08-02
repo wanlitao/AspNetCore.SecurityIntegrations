@@ -1,4 +1,4 @@
-﻿using AspNetCore.SecurityCommon;
+﻿using HEF.Security.BouncyCastle;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -26,6 +26,8 @@ namespace AspNetCore.ConsoleClient
                     {
                         c.BaseAddress = new Uri(appSettings["Gateway_Address"]);
                     });
+
+                    services.AddSingleton<ICryptoEncoding, Base64CryptoEncoding>();
 
                     services.AddHostedService<ClientHostedService>();
                 })

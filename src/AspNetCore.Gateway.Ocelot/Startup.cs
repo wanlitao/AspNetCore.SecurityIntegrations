@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Builder;
+﻿using Drore.SSL.Ocelot;
+using HEF.Extensions.Ocelot.RSAConfiguration;
+using HEF.Security.BouncyCastle;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,6 +34,8 @@ namespace AspNetCore.Gateway.Ocelot
                 .AddPolly()
                 .AddConsulRSAConfiguration();
 
+            services.AddSingleton<ICryptoEncoding, Base64CryptoEncoding>();
+
             services.AddHealthChecks(checks =>
             {
                 checks.AddValueTaskCheck("http endpoint",
@@ -47,7 +52,7 @@ namespace AspNetCore.Gateway.Ocelot
             }
 
             app.UseOcelot(config => 
-                config.UsePreSSLAuthentication(app.ApplicationServices)
+                config.UseDroreSSLAuthentication(app.ApplicationServices)
                 .UseRSAConfiguration("/rsa")
             ).Wait();
         }

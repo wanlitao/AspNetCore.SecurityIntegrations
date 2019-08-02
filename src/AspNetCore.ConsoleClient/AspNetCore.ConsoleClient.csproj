@@ -7,16 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Drore.SSL.Common" Version="1.0.0" />
     <PackageReference Include="FCP.Util.Async" Version="1.1.0" />
+    <PackageReference Include="HEF.Security.BouncyCastle" Version="1.0.1" />
+    <PackageReference Include="HEF.Security.Cryptography" Version="1.0.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="2.2.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="2.2.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="2.2.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="2.2.0" />
-    <PackageReference Include="Portable.BouncyCastle" Version="1.8.5" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\AspNetCore.SecurityCommon\AspNetCore.SecurityCommon.csproj" />
   </ItemGroup>
 
   <ItemGroup>
