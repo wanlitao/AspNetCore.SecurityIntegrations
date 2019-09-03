@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Drore.SSL.Ocelot" Version="1.0.1" />
+    <PackageReference Include="Drore.SSL.Ocelot" Version="1.0.2" />
     <PackageReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.HealthChecks" Version="1.0.0" />
     <PackageReference Include="Ocelot" Version="13.5.2" />
